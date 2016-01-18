@@ -1,0 +1,37 @@
+#!/usr/bin/python
+'''
+Convert binary framebuffer to an image
+'''
+from __future__ import print_function, division, unicode_literals
+import argparse,struct
+from binascii import b2a_hex
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Convert binary framebuffer to an image.')
+    parser.add_argument('input', metavar='INFILE', type=str,
+            help='Texture raw file')
+    parser.add_argument('output', metavar='OUTFILE', type=str,
+            help='Output image')
+    parser.add_argument('-w', dest='img_width', type=int,
+            help='Width of image to export')
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+    with open(args.input, 'rb') as f:
+        data = f.read()
+
+    if args.img_width is None:
+        print('Specify width of image with -w')
+        exit(1)
+
+    width = args.img_width
+    height = len(data)//(width*4)
+
+    from PIL import Image
+    img = Image.frombuffer("RGBX", (width, height), data, "raw", "RGBX", 0, 1)
+    img = img.convert("RGB")
+    img.save(args.output)
+
+if __name__ == '__main__':
+    main()

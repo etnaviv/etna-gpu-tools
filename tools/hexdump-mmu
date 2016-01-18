@@ -1,0 +1,2 @@
+#!/bin/sh
+exec hexdump -e '"%6.6_ax" 8 " %8.8x" "\n"' $*

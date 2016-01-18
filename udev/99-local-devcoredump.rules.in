@@ -1,0 +1,1 @@
+ACTION=="add", SUBSYSTEM=="devcoredump", RUN+="@sbindir@/devcoredump /sys/%p"

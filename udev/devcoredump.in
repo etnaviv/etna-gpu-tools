@@ -1,0 +1,14 @@
+#!/bin/sh -e
+D=`date '+%Y%m%d%H%M%S'`
+CRASHDIR="@crashdir@"
+UNPACKDIR="@unpackdir@"
+
+CRASH_BIN="$CRASHDIR/etnaviv-$D.bin"
+CRASH_DIR="$UNPACKDIR/etnaviv-$D"
+
+# Copy the crash dump
+cat "$1/data" > "$CRASH_BIN"
+
+# Unpack it into @unpackdir@
+mkdir "$CRASH_DIR"
+exec "@sbindir@/viv-unpack" "$CRASH_BIN" "$CRASH_DIR" > "$CRASH_DIR/log.txt"

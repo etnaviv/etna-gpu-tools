@@ -1,0 +1,2 @@
+#!/bin/sh
+exec hexdump -e '"%4.4_ax" 3/2 " %4.4x" "\n"' "$@"

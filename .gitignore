@@ -1,0 +1,8 @@
+bin2img
+*.o
+detile/viv-demultitile
+diff/viv-cmd-diff
+dump/viv-unpack
+info/viv_info
+udev/99-local-devcoredump.rules
+udev/devcoredump

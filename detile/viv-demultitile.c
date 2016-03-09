@@ -1,9 +1,61 @@
+#include <errno.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/fcntl.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
+
+static int safe_write(int fd, void *buf, size_t size)
+{
+	size_t written = 0;
+	ssize_t ret = 0;
+
+	while (size) {
+		ret = write(fd, buf, size);
+		if (ret == -1 && errno == EINTR) {
+			continue;
+		} else if (ret > 0) {
+			written += ret;
+			buf += ret;
+			size -= ret;
+		} else if (written) {
+			ret = written;
+			break;
+		} else {
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static int safe_read(int fd, void *buf, size_t size)
+{
+	size_t rd = 0;
+	ssize_t ret = 0;
+
+	while (size) {
+		ret = read(fd, buf, size);
+		if (ret == -1 && errno == EINTR) {
+			continue;
+		} else if (ret > 0) {
+			rd += ret;
+			buf += ret;
+			size -= ret;
+		} else if (rd) {
+			ret = rd;
+			break;
+		} else {
+			break;
+		}
+	}
+
+	return ret;
+}
+
 
 static void detile_gen(void *dst, void *src, unsigned int unit_size,
 	unsigned int tile_width, unsigned int tile_height,
@@ -44,8 +96,9 @@ static void demultitile(void *dst, void *src, unsigned ps, unsigned w, unsigned 
 	int x, y;
 
 	/*
-	 * u1 u2 l1 l2 u5 u6 l5 l6
-	 * l3 l4 u3 u4 l7 l8 u7 u8
+	 * 4  8  12 16 20 24 28 32 36  40  44  48  52  56  60  64
+	 * u1 u2 l1 l2 u5 u6 l5 l6 u9  u10 l9  l10 u13 u14 l13 l14
+	 * l3 l4 u3 u4 l7 l8 u7 u8 l11 l12 u11 u12 l15 l16 u15 u16
 	 */
 
 	tile_bytes = ps * 4 * 4; /* each 4x4 tile */
@@ -54,9 +107,11 @@ static void demultitile(void *dst, void *src, unsigned ps, unsigned w, unsigned 
 	src_u = src;
 	src_l = src + tile_stride * tile_h / 2;
 
-	fprintf(stderr, "tile bytes = 0x%x\n", tile_bytes);
-	fprintf(stderr, "tile stride = 0x%x\n", tile_stride);
-	fprintf(stderr, "u -> l = 0x%x\n", src_l - src_u);
+	if (0) {
+		fprintf(stderr, "tile bytes = 0x%x\n", tile_bytes);
+		fprintf(stderr, "tile stride = 0x%x\n", tile_stride);
+		fprintf(stderr, "u -> l = 0x%x\n", src_l - src_u);
+	}
 
 	for (y = 0; y < tile_h / 2; y++) {
 		void *dpyu = tmp + y * 2 * tile_stride;
@@ -89,22 +144,101 @@ int main(int argc, char *argv[])
 {
 	struct stat st;
 	void *ptr, *out;
+	int fd = 0;
+	int opt, ret, cpp = 4, width = 0, height = -1, multitile = 0;
+	size_t size;
 
-	if (fstat(0, &st) == -1) {
-		perror("failed to stat");
+	while ((opt = getopt(argc, argv, "w:h:m")) != -1) {
+		switch (opt) {
+		case 'w':
+			width = strtoul(optarg, NULL, 10);
+			break;
+		case 'h':
+			height = strtoul(optarg, NULL, 10);
+			break;
+		case 'm':
+			multitile = 1;
+			break;
+		default:
+			fprintf(stderr, "Usage: %s [-w WIDTH] [-h HEIGHT] [FILE]\n",
+				argv[0]);
+			return 1;
+		}
+	}
+
+	if (optind < argc) {
+		fd = open(argv[optind], O_RDONLY);
+		if (fd == -1) {
+			fprintf(stderr, "%s: %s: %m\n", argv[0], argv[optind]);
+			return 1;
+		}
+	} else {
+		fd = dup(0);
+	}
+
+	if (fstat(fd, &st) == -1) {
+		fprintf(stderr, "%s: failed to stat: %m\n", argv[0]);
+		close(fd);
 		return 1;
 	}
 
-	ptr = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, 0, 0);
-	if (ptr == (void *)-1) {
-		perror("failed to mmap");
+	if (height == -1)
+		height = st.st_size / (width * cpp);
+
+	size = cpp * width * height;
+	if (st.st_size) {
+		if (size > st.st_size) {
+			fprintf(stderr, "%s: width/height exceeds file size\n",
+				argv[0]);
+			close(fd);
+			return 1;
+		}
+
+		ptr = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+		if (ptr == (void *)-1) {
+			fprintf(stderr, "%s: failed to mmap: %m", argv[0]);
+			close(fd);
+			return 1;
+		}
+	} else {
+		ptr = malloc(size);
+		if (!ptr) {
+			fprintf(stderr, "%s: out of memory\n", argv[0]);
+			close(fd);
+			return 1;
+		}
+		ret = safe_read(fd, ptr, size);
+		if (ret < 0) {
+			fprintf(stderr, "%s: %m\n", argv[0]);
+			free(ptr);
+			close(fd);
+			return 1;
+		} else if (ret != size) {
+			fprintf(stderr, "%s: short read\n", argv[0]);
+			free(ptr);
+			close(fd);
+			return 1;
+		}
+	}
+
+	out = malloc(size);
+
+	if (multitile)
+		demultitile(out, ptr, cpp, width, height);
+	else
+		detile(out, ptr, cpp, width, height);
+
+	ret = safe_write(1, out, size);
+
+	free(out);
+
+	if (ret < 0) {
+		fprintf(stderr, "%s: write: %m\n", argv[0]);
+		return 1;
+	} else if (ret != size) {
+		fprintf(stderr, "%s: short write\n", argv[0]);
 		return 1;
 	}
 
-	out = malloc(st.st_size);
-
-	demultitile(out, ptr, 4, 256, 256);
-
-	write(1, out, st.st_size);
 	return 0;
 }

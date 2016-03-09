@@ -41,7 +41,7 @@ clean:
 
 info/features.h: include/hw/common.xml.h
 	{ \
-	for n in chipFeatures chipMinorFeatures0 chipMinorFeatures1 chipMinorFeatures2 chipMinorFeatures3 chipMinorFeatures4; do \
+	for n in chipFeatures chipMinorFeatures0 chipMinorFeatures1 chipMinorFeatures2 chipMinorFeatures3 chipMinorFeatures4 chipMinorFeatures5; do \
 	echo "static struct feature vivante_$${n}[] __maybe_unused = {"; \
 	echo "#define FEATURE(x) { $${n}_##x, #x }"; \
 	sed -n "s/#define $${n}_\([^[:space:]]*\).*/\tFEATURE(\1),/p" $<; \
@@ -67,4 +67,4 @@ LDLIBS_viv_info		:=$(libdrm_ldflags)
 info/viv_info: info/viv_info.o
 
 CFLAGS_viv_info.o	:=$(libdrm_cflags)
-info/viv_info.o: info/viv_info.c info/features.h
+info/viv_info.o: info/viv_info.c info/features.h include/etnaviv_drm.h

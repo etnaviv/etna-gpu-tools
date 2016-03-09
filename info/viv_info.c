@@ -83,6 +83,16 @@ static struct param params[] = {
 		.tbl = vivante_chipMinorFeatures3,
 		.tbl_sz = ARRAY_SIZE(vivante_chipMinorFeatures3),
 	}, {
+		.param = ETNAVIV_PARAM_GPU_FEATURES_5,
+		.format = "Chip minor features 4: 0x%08x\n",
+		.tbl = vivante_chipMinorFeatures4,
+		.tbl_sz = ARRAY_SIZE(vivante_chipMinorFeatures4),
+	}, {
+		.param = ETNAVIV_PARAM_GPU_FEATURES_6,
+		.format = "Chip minor features 5: 0x%08x\n",
+		.tbl = vivante_chipMinorFeatures5,
+		.tbl_sz = ARRAY_SIZE(vivante_chipMinorFeatures5),
+	}, {
 		.param = ETNAVIV_PARAM_GPU_STREAM_COUNT,
 		.format = "Stream count: %u\n",
 	}, {
@@ -112,6 +122,9 @@ static struct param params[] = {
 	}, {
 		.param = ETNAVIV_PARAM_GPU_BUFFER_SIZE,
 		.format = "Buffer size: %u\n",
+	}, {
+		.param = ETNAVIV_PARAM_GPU_NUM_VARYINGS,
+		.format = "Varyings count: %u\n",
 	},
 };
 
